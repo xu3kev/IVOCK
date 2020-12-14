@@ -108,19 +108,21 @@ int main(int argc, char** argv) {
 	//b1.free();
 	//res1.free();
 	///////////////////////////////////////////////////////////////////////////////////
-	if(argc<4)
+	if(argc<5)
 	{
-		printf("please specify output path, advection type(0:SL, 1:SL+iVOCK, 2:BFECC 3:BFECC+iVOCK, 4:MacCormack, 5:MacCormack+iVOCK, 6:FLIP, 7:FLIP+iVOCK, 8:Best Combination),vort_confine_str \n");
+		printf("please specify output path, advection type(0:SL, 1:SL+iVOCK, 2:BFECC 3:BFECC+iVOCK, 4:MacCormack, 5:MacCormack+iVOCK, 6:FLIP, 7:FLIP+iVOCK, 8:Best Combination),vort_confine_str num_frames\n");
 		return 0;
 	}
 	else{
 		int advection_type;
 		float vort_confine_str=0;
+        int num_frames;
 
 		char file_path[256];
 		int n=sprintf(file_path,"%s",argv[1]);
 		sscanf(argv[2],"%d",&advection_type);
 		sscanf(argv[3], "%f", &vort_confine_str);
+		sscanf(argv[4], "%d", &num_frames);
 		if(advection_type<0 || advection_type>8)
 		{
 			printf("error!, advection type must take one of these values : 0:SL, 1:SL+iVOCK, 2:BFECC 3:BFECC+iVOCK, 4:MacCormack, 5:MacCormack+iVOCK, 6:FLIP, 7:FLIP+iVOCK, 8:Best Combination\n");
@@ -216,7 +218,7 @@ int main(int argc, char** argv) {
 
 
 		clock_t start = clock();
-		for (int frame = 0; frame<200;frame++)
+		for (int frame = 0; frame<num_frames;frame++)
 		{
 			//for(int subs=0; subs<2;subs++)
 			float T = 0.1*(float)frame;
