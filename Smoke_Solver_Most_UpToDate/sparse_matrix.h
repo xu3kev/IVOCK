@@ -103,68 +103,68 @@ struct SparseMatrix
 		value[i].push_back(increment_value);
 	}
 
-	// assumes indices is already sorted
-	void add_sparse_row(unsigned int i, const std::vector<unsigned int> &indices, const std::vector<T> &values)
-	{
-		unsigned int j=0, k=0;
-		while(j<indices.size() && k<index[i].size()){
-			if(index[i][k]<indices[j]){
-				++k;
-			}else if(index[i][k]>indices[j]){
-				insert(index[i], k, indices[j]);
-				insert(value[i], k, values[j]);
-				++j;
-			}else{
-				value[i][k]+=values[j];
-				++j;
-				++k;
-			}
-		}
-		for(;j<indices.size(); ++j){
-			index[i].push_back(indices[j]);
-			value[i].push_back(values[j]);
-		}
-	}
+	//// assumes indices is already sorted
+	//void add_sparse_row(unsigned int i, const std::vector<unsigned int> &indices, const std::vector<T> &values)
+	//{
+	//	unsigned int j=0, k=0;
+	//	while(j<indices.size() && k<index[i].size()){
+	//		if(index[i][k]<indices[j]){
+	//			++k;
+	//		}else if(index[i][k]>indices[j]){
+	//			insert(index[i], k, indices[j]);
+	//			insert(value[i], k, values[j]);
+	//			++j;
+	//		}else{
+	//			value[i][k]+=values[j];
+	//			++j;
+	//			++k;
+	//		}
+	//	}
+	//	for(;j<indices.size(); ++j){
+	//		index[i].push_back(indices[j]);
+	//		value[i].push_back(values[j]);
+	//	}
+	//}
 
-	void add_sparse_row(unsigned int i, const std::vector<unsigned int> &indices, T multiplier, const std::vector<T> &values)
-	{
-		assert(i<n);
-		unsigned int j=0, k=0;
-		while(j<indices.size() && k<index[i].size()){
-			if(index[i][k]<indices[j]){
-				++k;
-			}else if(index[i][k]>indices[j]){
-				insert(index[i], k, indices[j]);
-				insert(value[i], k, multiplier*values[j]);
-				++j;
-			}else{
-				value[i][k]+=multiplier*values[j];
-				++j;
-				++k;
-			}
-		}
-		for(;j<indices.size(); ++j){
-			index[i].push_back(indices[j]);
-			value[i].push_back(multiplier*values[j]);
-		}
-	}
+	//void add_sparse_row(unsigned int i, const std::vector<unsigned int> &indices, T multiplier, const std::vector<T> &values)
+	//{
+	//	assert(i<n);
+	//	unsigned int j=0, k=0;
+	//	while(j<indices.size() && k<index[i].size()){
+	//		if(index[i][k]<indices[j]){
+	//			++k;
+	//		}else if(index[i][k]>indices[j]){
+	//			insert(index[i], k, indices[j]);
+	//			insert(value[i], k, multiplier*values[j]);
+	//			++j;
+	//		}else{
+	//			value[i][k]+=multiplier*values[j];
+	//			++j;
+	//			++k;
+	//		}
+	//	}
+	//	for(;j<indices.size(); ++j){
+	//		index[i].push_back(indices[j]);
+	//		value[i].push_back(multiplier*values[j]);
+	//	}
+	//}
 
 	// assumes matrix has symmetric structure - so the indices in row i tell us which columns to delete i from
-	void symmetric_remove_row_and_column(unsigned int i)
-	{
-		for(unsigned int a=0; a<index[i].size(); ++a){
-			unsigned int j=index[i][a]; // 
-			for(unsigned int b=0; b<index[j].size(); ++b){
-				if(index[j][b]==i){
-					erase(index[j], b);
-					erase(value[j], b);
-					break;
-				}
-			}
-		}
-		index[i].resize(0);
-		value[i].resize(0);
-	}
+	//void symmetric_remove_row_and_column(unsigned int i)
+	//{
+	//	for(unsigned int a=0; a<index[i].size(); ++a){
+	//		unsigned int j=index[i][a]; // 
+	//		for(unsigned int b=0; b<index[j].size(); ++b){
+	//			if(index[j][b]==i){
+	//				erase(index[j], b);
+	//				erase(value[j], b);
+	//				break;
+	//			}
+	//		}
+	//	}
+	//	index[i].resize(0);
+	//	value[i].resize(0);
+	//}
 
 	void write_matlab(std::ostream &output, const char *variable_name)
 	{
@@ -191,21 +191,21 @@ struct SparseMatrix
 };
 
 
-template<class T>
-void multiply_sparse_matrices_with_diagonal_weighting(const SparseMatrix<T> &A, const std::vector<T> &diagD,
-	const SparseMatrix<T> &B, SparseMatrix<T> &C)
-{
-	//assert(A.n==B.m);
-	assert(diagD.size()==A.n);
-	C.resize(A.n);
-	C.zero();
-	for(unsigned int i=0; i<A.n; ++i){
-		for(unsigned int p=0; p<A.index[i].size(); ++p){
-			unsigned int k=A.index[i][p];
-			C.add_sparse_row(i, B.index[k], A.value[i][p]*diagD[k], B.value[k]);
-		}
-	}
-}
+//template<class T>
+//void multiply_sparse_matrices_with_diagonal_weighting(const SparseMatrix<T> &A, const std::vector<T> &diagD,
+//	const SparseMatrix<T> &B, SparseMatrix<T> &C)
+//{
+//	//assert(A.n==B.m);
+//	assert(diagD.size()==A.n);
+//	C.resize(A.n);
+//	C.zero();
+//	for(unsigned int i=0; i<A.n; ++i){
+//		for(unsigned int p=0; p<A.index[i].size(); ++p){
+//			unsigned int k=A.index[i][p];
+//			C.add_sparse_row(i, B.index[k], A.value[i][p]*diagD[k], B.value[k]);
+//		}
+//	}
+//}
 
 
 
@@ -296,17 +296,33 @@ struct FixedSparseMatrix
 		resize(matrix.n);
 		rowstart[0]=0;
 		for(unsigned int i=0; i<n; ++i){
-			rowstart[i+1]=rowstart[i]+matrix.index[i].size();
+      if(matrix.index[i].size()>8){
+        printf("WARNING!!!!\n");
+      }
+	  //rowstart[i+1]=rowstart[i]+matrix.index[i].size();
+      rowstart[i+1]=rowstart[i]+8;
 		}
 		value.resize(rowstart[n]);
 		colindex.resize(rowstart[n]);
-		unsigned int j=0;
+        //printf("%d %d\n",rowstart[n], n*8);
+		//unsigned int j=0;
+		//for(unsigned int i=0; i<n; ++i){
+		//	for(unsigned int k=0; k<matrix.index[i].size(); ++k){
+		//		value[j]=matrix.value[i][k];
+		//		colindex[j]=matrix.index[i][k];
+		//		++j;
+		//	}
+		//}
+
 		for(unsigned int i=0; i<n; ++i){
 			for(unsigned int k=0; k<matrix.index[i].size(); ++k){
-				value[j]=matrix.value[i][k];
-				colindex[j]=matrix.index[i][k];
-				++j;
-			}
+				value[i*8+k]=matrix.value[i][k];
+				colindex[i*8+k]=matrix.index[i][k];
+		    }
+            for(unsigned int k=matrix.index[i].size();k<8;++k){
+                value[i*8+k] = 0;
+                colindex[i*8+k] = i;
+            }
 		}
 	}
 
@@ -371,11 +387,11 @@ void multiplyMat(const FixedSparseMatrix<T> &A, const FixedSparseMatrix<T> &B, F
 {
 	//needs parallel
 	C.clear();
-	SparseMatrix<T> c; 
+    SparseMatrix<T> c;
 	c.resize(A.n);
 	c.zero();
-	tbb::parallel_for((unsigned int)0,(unsigned int)c.n,(unsigned int)1,[&](unsigned int i)
-		//for (unsigned int i=0;i<c.n;++i)
+	//tbb::parallel_for((unsigned int)0,(unsigned int)c.n,(unsigned int)1,[&](unsigned int i)
+	for (unsigned int i=0;i<c.n;++i)
 	{
 		for (unsigned int j=A.rowstart[i]; j<A.rowstart[i+1]; ++j)
 		{
@@ -383,12 +399,13 @@ void multiplyMat(const FixedSparseMatrix<T> &A, const FixedSparseMatrix<T> &B, F
 			T A_ik = A.value[j];
 			for (unsigned int kkk=B.rowstart[k];kkk<B.rowstart[k+1];++kkk)
 			{
+        if(B.value[kkk]!=0 && A_ik !=0)
 				c.add_to_element(i,B.colindex[kkk],scale*A_ik*B.value[kkk]);
 			}
 
 		}
-
-	});
+    }
+	//});
 
 	//for(unsigned int i=0; i<matrix.n; ++i){
 	//   result[i]=0;
@@ -400,60 +417,59 @@ void multiplyMat(const FixedSparseMatrix<T> &A, const FixedSparseMatrix<T> &B, F
 	C.construct_from_matrix(c);
 	c.clear();
 
-
 }
 
 
 // perform A = coef*B'
-template<class T>
-void transposeMat(const FixedSparseMatrix<T> &B, FixedSparseMatrix<T> &A, T coef)
-{
-	A.clear();
-
-	//needs parallel
-	SparseMatrix<T> a; 
-	unsigned int max_col = 0;
-	//find how many columns does B have
-	for (unsigned int i=0; i<B.n;++i)
-	{
-		for (unsigned int j=B.rowstart[i];j<B.rowstart[i+1];++j)
-		{
-			if (B.colindex[j]>max_col)
-			{
-				max_col = B.colindex[j];
-			}
-
-		}
-
-	}
-	a.resize(max_col+1);
-	a.zero();
-
-	for (unsigned int i=0; i<B.n;++i)
-	{
-		for (unsigned int j=B.rowstart[i];j<B.rowstart[i+1];++j)
-		{
-			T val = B.value[j];
-			unsigned int ii = B.colindex[j];
-			unsigned int jj = i;
-			a.set_element(ii,jj,coef*val);
-		}
-	}
-
-
-
-	//for(unsigned int i=0; i<matrix.n; ++i){
-	//   result[i]=0;
-	//   for(unsigned int j=matrix.rowstart[i]; j<matrix.rowstart[i+1]; ++j){
-	//      result[i]+=matrix.value[j]*x[matrix.colindex[j]];
-	//   }
-	//}
-
-	A.construct_from_matrix(a);
-	a.clear();
-
-
-}
+//template<class T>
+//void transposeMat(const FixedSparseMatrix<T> &B, FixedSparseMatrix<T> &A, T coef)
+//{
+//	A.clear();
+//
+//	//needs parallel
+//	SparseMatrix<T> a; 
+//	unsigned int max_col = 0;
+//	//find how many columns does B have
+//	for (unsigned int i=0; i<B.n;++i)
+//	{
+//		for (unsigned int j=B.rowstart[i];j<B.rowstart[i+1];++j)
+//		{
+//			if (B.colindex[j]>max_col)
+//			{
+//				max_col = B.colindex[j];
+//			}
+//
+//		}
+//
+//	}
+//	a.resize(max_col+1);
+//	a.zero();
+//
+//	for (unsigned int i=0; i<B.n;++i)
+//	{
+//		for (unsigned int j=B.rowstart[i];j<B.rowstart[i+1];++j)
+//		{
+//			T val = B.value[j];
+//			unsigned int ii = B.colindex[j];
+//			unsigned int jj = i;
+//			a.set_element(ii,jj,coef*val);
+//		}
+//	}
+//
+//
+//
+//	//for(unsigned int i=0; i<matrix.n; ++i){
+//	//   result[i]=0;
+//	//   for(unsigned int j=matrix.rowstart[i]; j<matrix.rowstart[i+1]; ++j){
+//	//      result[i]+=matrix.value[j]*x[matrix.colindex[j]];
+//	//   }
+//	//}
+//
+//	A.construct_from_matrix(a);
+//	a.clear();
+//
+//
+//}
 
 // perform result=result-matrix*x
 template<class T>
