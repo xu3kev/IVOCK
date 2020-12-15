@@ -11,6 +11,7 @@
 #include "blas_wrapper.h"
 #include "GeometricLevelGen.h"
 #include "pcg_solver.h"
+#include <assert.h>
 /*
 given A_L, R_L, P_L, b,compute x using
 Multigrid Cycles.
@@ -24,7 +25,6 @@ void RBGS(const FixedSparseMatrix<T> &A,
 	vector<T> &x, 
 	int ni, int nj, int nk, int iternum)
 {
-
 	for (int iter=0;iter<iternum;iter++)
 	{
 		size_t num = ni*nj*nk;
@@ -40,8 +40,11 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					unsigned int index = (unsigned int)thread_idx;
 					T sum = 0;
 					T diag= 0;
+                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
 					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
 					{
+                        if(A.value[ii]==0)
+                            continue;
 						if(A.colindex[ii]!=index)//none diagonal terms
 						{
 							sum += A.value[ii]*x[A.colindex[ii]];
@@ -57,6 +60,7 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					}
 					else
 					{
+                        assert(0);
 						x[index] = 0;
 					}
 				}
@@ -77,6 +81,8 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					T diag= 0;
 					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
 					{
+                        if(A.value[ii]==0)
+                            continue;
 						if(A.colindex[ii]!=index)//none diagonal terms
 						{
 							sum += A.value[ii]*x[A.colindex[ii]];
@@ -92,8 +98,70 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					}
 					else
 					{
+                        assert(0);
 						x[index] = 0;
 					}
+				}
+			}
+
+		});
+	}
+}
+
+template<class T>
+void RBGSNB(const FixedSparseMatrix<T> &A, 
+    const T *A_diag,
+	const vector<T> &b,
+	vector<T> &x, 
+	int ni, int nj, int nk, int iternum)
+{
+	for (int iter=0;iter<iternum;iter++)
+	{
+		size_t num = ni*nj*nk;
+		size_t slice = ni*nj;
+		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+			int k = thread_idx/slice;
+			int j = (thread_idx%slice)/ni;
+			int i = thread_idx%ni;
+			if(k<nk && j<nj && i<ni)
+			{
+				if ((i+j+k)%2 == 1)
+				{
+					unsigned int index = (unsigned int)thread_idx;
+					T sum = 0;
+					T diag= 0;
+                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+					{
+                  sum += A.value[ii]*x[A.colindex[ii]];
+					}//A(i,:)*x for off-diag terms
+           x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+           //x[index] = (b[index]-sum)/diag;
+           //printf("%f %f\n", A_diag[index], diag);
+				}
+			}
+
+		});
+
+		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+			int k = thread_idx/slice;
+			int j = (thread_idx%slice)/ni;
+			int i = thread_idx%ni;
+			if(k<nk && j<nj && i<ni)
+			{
+				if ((i+j+k)%2 == 0)
+				{
+					unsigned int index = (unsigned int)thread_idx;
+					T sum = 0;
+					T diag= 0;
+                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+					{
+                sum += A.value[ii]*x[A.colindex[ii]];
+					}//A(i,:)*x for off-diag terms
+           x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+           //x[index] = (b[index]-sum)/diag;
+           //printf("%f %f\n", A_diag[index], diag);
 				}
 			}
 
@@ -108,6 +176,7 @@ void restriction(const FixedSparseMatrix<T> &R,
 	const vector<T>            &b_curr,
 	vector<T>                  &b_next)
 {
+  
 	b_next.assign(b_next.size(),0);
 	vector<T> r = b_curr;
 	multiply_and_subtract(A,x,r);
@@ -141,6 +210,7 @@ void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
 	b_L.resize(total_level);
 	b_L[0] = b;
 	x_L[0] = x;
+
 	for(int i=1;i<total_level;i++)
 	{
 		int unknowns = S_L[i].v[0]*S_L[i].v[1]*S_L[i].v[2];
@@ -156,7 +226,36 @@ void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
 		restriction(*(R_L[i]),*(A_L[i]),x_L[i],b_L[i],b_L[i+1]);
 	}
 	int i = total_level-1;
-	RBGS(*(A_L[i]),b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
+
+
+    // convert A_L[i]
+    //printf("convert");
+    printf("n = %d\n", A_L[i]->n);
+    T *A_diag = new T [A_L[i]->n];
+    for(int j=0;j< A_L[i]->n; ++j){
+        //printf("row %d :\n",j);
+        int match = 0;
+        for(int k=A_L[i]->rowstart[j];k<A_L[i]->rowstart[j+1];++k){
+            //printf("here\n");
+            //A_L[i]->value[k]
+            if(match==0&&A_L[i]->colindex[k]==j){
+                match=1;
+                A_diag[j] = A_L[i]->value[k];
+                if(A_diag[j]==0){
+                    printf("WARNING !!!!!\n");
+                }
+                //A_L[i]->value[k] = 0;
+            }
+            //printf("%d ", A_L[i]->colindex[k]);
+            
+        }
+        assert(match==1);
+        //printf("\n");
+    }
+    
+    
+	RBGSNB(*(A_L[i]), A_diag ,b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
+	//RBGS(*(A_L[i]), b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
 	for (int i=total_level-2;i>=0;i--)
 	{
 		prolongatoin(*(P_L[i]),x_L[i+1],x_L[i]);
@@ -464,6 +563,7 @@ void amgVCycleCompressed(vector<FixedSparseMatrix<T> *> &A_L,
 	const vector<T>                &b)
 {
 	int total_level = A_L.size();
+    printf("total level = %d\n", total_level);
 	vector<vector<T>> x_L;
 	vector<vector<T>> b_L;
 	x_L.resize(total_level);
