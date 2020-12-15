@@ -130,8 +130,9 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 					unsigned int index = (unsigned int)thread_idx;
 					T sum = 0;
 					T diag= 0;
-                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
-					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+                    //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+					for (int ii=index*8;ii<index*8+8;ii++)
                         sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
                     x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
                     //x[index] = (b[index]-sum)/diag;
@@ -151,8 +152,9 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 					unsigned int index = (unsigned int)thread_idx;
 					T sum = 0;
 					T diag= 0;
-                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
-					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+                    //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+					for (int ii=index*8;ii<index*8+8;ii++)
                         sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
                     x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
                     //x[index] = (b[index]-sum)/diag;
