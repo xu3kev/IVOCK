@@ -17,7 +17,7 @@ struct SparseMatrix
 	std::vector<std::vector<T> > value; // values corresponding to index
 	~SparseMatrix()
 	{
-		clear();
+
 	}
 	explicit SparseMatrix(unsigned int n_=0, unsigned int expected_nonzeros_per_row=7)
 		: n(n_), index(n_), value(n_)
@@ -266,8 +266,10 @@ template<class T>
 struct FixedSparseMatrix
 {
 	unsigned int n; // dimension
-	std::vector<T> value; // nonzero values row by row
-	std::vector<unsigned int> colindex; // corresponding column indices
+	//std::vector<T> value; // nonzero values row by row
+	//std::vector<unsigned int> colindex; // corresponding column indices
+    T *value;
+    int *colindex;
 	std::vector<unsigned int> rowstart; // where each row starts in value and colindex (and last entry is one past the end, the number of nonzeros)
 
 	explicit FixedSparseMatrix(unsigned int n_=0)
@@ -280,8 +282,17 @@ struct FixedSparseMatrix
 	void clear(void)
 	{
 		n=0;
-		value.resize(0); value.shrink_to_fit();
-		colindex.resize(0); colindex.shrink_to_fit();
+        if(value){
+            delete [] value;
+            value = 0;
+        }
+        if(colindex){
+            delete [] colindex;
+            colindex = 0;
+        }
+
+		//value.resize(0); value.shrink_to_fit();
+		//colindex.resize(0); colindex.shrink_to_fit();
 		rowstart.resize(0); rowstart.shrink_to_fit();
 	}
 
@@ -302,8 +313,10 @@ struct FixedSparseMatrix
 	  //rowstart[i+1]=rowstart[i]+matrix.index[i].size();
       rowstart[i+1]=rowstart[i]+8;
 		}
-		value.resize(rowstart[n]);
-		colindex.resize(rowstart[n]);
+		//value.resize(rowstart[n]);
+		//colindex.resize(rowstart[n]);
+        value = new T [rowstart[n]];
+        colindex = new int [rowstart[n]];
         //printf("%d %d\n",rowstart[n], n*8);
 		//unsigned int j=0;
 		//for(unsigned int i=0; i<n; ++i){
