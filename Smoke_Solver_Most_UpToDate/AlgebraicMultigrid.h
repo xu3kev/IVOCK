@@ -144,8 +144,8 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 	{
 		size_t num = ni*nj*nk;
 		size_t slice = ni*nj;
-		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
-        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
+		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -165,8 +165,12 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 
                     __m256d v1 = _mm256_loadu_pd(A.value+index*8);
                     __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
-                    __m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
-                    __m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+                    __m256i ci12 = _mm256_loadu_si256((__m256i*) (A.colindex+index*8));
+                    //__m256i ci12 =_mm256_loadu_epi32(A.colindex+index*8);
+                    //__m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
+                    //__m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+                    __m128i ci1  = _mm256_castsi256_si128(ci12); 
+                    __m128i ci2 = _mm256_extractf128_si256(ci12, 1);
                     __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
                     __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
                     __m256d c1v1 = _mm256_mul_pd(c1, v1);
@@ -189,11 +193,11 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
-        }
-		//});
+        //}
+		});
 
-		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
-        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
+		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -209,8 +213,11 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 
                     __m256d v1 = _mm256_loadu_pd(A.value+index*8);
                     __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
-                    __m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
-                    __m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+                    __m256i ci12 = _mm256_loadu_si256((__m256i*) (A.colindex+index*8));
+                    //__m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
+                    //__m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+                    __m128i ci1  = _mm256_castsi256_si128(ci12); 
+                    __m128i ci2 = _mm256_extractf128_si256(ci12, 1);
                     __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
                     __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
                     __m256d c1v1 = _mm256_mul_pd(c1, v1);
@@ -233,8 +240,8 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
-        }
-		//});
+        //}
+		});
 	}
 }
 

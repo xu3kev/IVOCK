@@ -284,10 +284,12 @@ struct FixedSparseMatrix
 		n=0;
         if(value){
             delete [] value;
+            //free(value);
             value = 0;
         }
         if(colindex){
             delete [] colindex;
+            //free(colindex);
             colindex = 0;
         }
 
@@ -316,7 +318,11 @@ struct FixedSparseMatrix
 		//value.resize(rowstart[n]);
 		//colindex.resize(rowstart[n]);
         value = new T [rowstart[n]];
+        //std::cerr<<"aloc"<<std::endl;
+        //value = (T*)aligned_alloc(64, sizeof(T)* rowstart[n]);
+        //colindex = (int*)aligned_alloc(32, sizeof(int)*rowstart[n]);
         colindex = new int [rowstart[n]];
+        //std::cerr<<"aloc done"<<std::endl;
         //printf("%d %d\n",rowstart[n], n*8);
 		//unsigned int j=0;
 		//for(unsigned int i=0; i<n; ++i){
