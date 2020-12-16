@@ -158,39 +158,13 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //    sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
 
                         
-                    //printf("print array");
-					//for (int ii=index*8;ii<index*8+8;ii++)
-                    //    printf("%f ",A.value[ii]);
-                    //printf("\n");
 
                     __m256d v1 = _mm256_loadu_pd(A.value+index*8);
                     __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
-
-                    //print_m256d(v1);
-                    //print_m256d(v2);
-
                     __m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
                     __m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
-
-                    //printf("print array");
-					//for (int ii=index*8;ii<index*8+8;ii++)
-                    //    printf("%d ",A.colindex[ii]);
-                    //printf("\n");
-
-                    //print_m128i(ci1);
-                    //print_m128i(ci2);
-
                     __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
                     __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
-
-
-                    //printf("print array ");
-					//for (int ii=index*8;ii<index*8+8;ii++)
-                    //    printf("%f ",xp[A.colindex[ii]]);
-                    //printf("\n");
-                    //print_m256d(c1);
-                    //print_m256d(c2);
-
                     __m256d c1v1 = _mm256_mul_pd(c1, v1);
                     __m256d c2v2 = _mm256_mul_pd(c2, v2);
                     __m256d cv = _mm256_add_pd(c1v1, c2v2);
@@ -225,8 +199,26 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 					T diag= 0;
                     //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
 					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-					for (int ii=index*8;ii<index*8+8;ii++)
-                        sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
+
+                    __m256d v1 = _mm256_loadu_pd(A.value+index*8);
+                    __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
+                    __m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
+                    __m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+                    __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
+                    __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
+                    __m256d c1v1 = _mm256_mul_pd(c1, v1);
+                    __m256d c2v2 = _mm256_mul_pd(c2, v2);
+                    __m256d cv = _mm256_add_pd(c1v1, c2v2);
+                    __m128d cvlow  = _mm256_castpd256_pd128(cv); 
+                    __m128d cvhigh = _mm256_extractf128_pd(cv, 1);
+                    __m128d sum1 =   _mm_add_pd(cvlow, cvhigh);
+                    __m128d swapped = _mm_shuffle_pd(sum1, sum1, 0b01);
+                    __m128d dotproduct = _mm_add_pd(sum1, swapped);
+                    double avx_sum[2];
+                    _mm_storeu_pd(avx_sum, dotproduct);
+                    //printf("%f %f\n", avx_sum[0], sum);
+                    sum = avx_sum[0];
+
                     x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
                     //x[index] = (b[index]-sum)/diag;
 				}
@@ -297,7 +289,7 @@ void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
 
     // convert A_L[i]
     //printf("convert");
-    printf("n = %d\n", A_L[i]->n);
+    //printf("n = %d\n", A_L[i]->n);
     T *A_diag = new T [A_L[i]->n];
     for(int j=0;j< A_L[i]->n; ++j){
         //printf("row %d :\n",j);
