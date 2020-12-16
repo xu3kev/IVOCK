@@ -139,11 +139,19 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 	vector<T> &x, 
 	int ni, int nj, int nk, int iternum)
 {
+    tbb::task_group group;
+    int nthreads = 2;
+    tbb::task_arena arena(nthreads, 1);
+
+    tbb::global_control control(
+        tbb::global_control::max_allowed_parallelism, nthreads);
     const T * xp = &(x[0]);
 	for (int iter=0;iter<iternum;iter++)
 	{
 		size_t num = ni*nj*nk;
 		size_t slice = ni*nj;
+        arena.execute( [&] {
+                group.run( [&] {
 		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
@@ -195,7 +203,13 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 			}
         //}
 		});
+		});
+		});
+        arena.execute( [&] { group.wait(); });      
 
+
+        arena.execute( [&] {
+                group.run( [&] {
 		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
@@ -242,6 +256,9 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 			}
         //}
 		});
+		});
+		});
+        arena.execute( [&] { group.wait(); });      
 	}
 }
 
