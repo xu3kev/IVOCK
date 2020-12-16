@@ -30,7 +30,8 @@ void RBGS(const FixedSparseMatrix<T> &A,
 	{
 		size_t num = ni*nj*nk;
 		size_t slice = ni*nj;
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -66,10 +67,11 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					}
 				}
 			}
+        }
+		//});
 
-		});
-
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -104,8 +106,8 @@ void RBGS(const FixedSparseMatrix<T> &A,
 					}
 				}
 			}
-
-		});
+        }
+		//});
 	}
 }
 
@@ -128,6 +130,8 @@ static void print_m128i(__m128i x){
     }
     printf("\n");
 }
+
+
 template<class T>
 void RBGSNB(const FixedSparseMatrix<T> &A, 
     const T *A_diag,
@@ -178,7 +182,10 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //printf("%f %f\n", avx_sum[0], sum);
                     sum = avx_sum[0];
 
-                    x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+                    if(A_diag[index]!=0)
+                        x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+                    else
+                        x[index] = 0;
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
@@ -219,7 +226,10 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //printf("%f %f\n", avx_sum[0], sum);
                     sum = avx_sum[0];
 
-                    x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+                    if(A_diag[index]!=0)
+                        x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
+                    else
+                        x[index] = 0;
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
@@ -254,8 +264,39 @@ void prolongatoin(const FixedSparseMatrix<T> &P,
 	add_scaled(1.0,xx,x_next);
 	xx.resize(0);
 }
+
+
+template<class T>
+T* get_diag(FixedSparseMatrix<T> *A){
+    // convert A_L[i]
+    //printf("convert");
+    //printf("n = %d\n", A_L[i]->n);
+    T *A_diag = new T [A->n];
+    for(int j=0;j< A->n; ++j){
+        //printf("row %d :\n",j);
+        int match = 0;
+        for(int k=A->rowstart[j];k<A->rowstart[j+1];++k){
+            //printf("here\n");
+            //A_L[i]->value[k]
+            if(match==0&&A->colindex[k]==j){
+                match=1;
+                A_diag[j] = A->value[k];
+                if(A_diag[j]==0){
+                    //printf("diag WARNING !!!!!\n");
+                }
+                //A_L[i]->value[k] = 0;
+            }
+            //printf("%d ", A_L[i]->colindex[k]);
+        }
+        assert(match==1);
+        //printf("\n");
+    }
+    return A_diag;
+}
+
 template<class T>
 void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
+    vector<T *> &A_L_diag,
 	vector<FixedSparseMatrix<T> *> &R_L,
 	vector<FixedSparseMatrix<T> *> &P_L,
 	vector<Vec3i>                  &S_L,
@@ -281,44 +322,22 @@ void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
 
 	for (int i=0;i<total_level-1;i++)
 	{
-		RBGS(*(A_L[i]),b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
+		//RBGS(*(A_L[i]),b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
+		RBGSNB(*(A_L[i]),A_L_diag[i], b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
 		restriction(*(R_L[i]),*(A_L[i]),x_L[i],b_L[i],b_L[i+1]);
 	}
 	int i = total_level-1;
 
 
-    // convert A_L[i]
-    //printf("convert");
-    //printf("n = %d\n", A_L[i]->n);
-    T *A_diag = new T [A_L[i]->n];
-    for(int j=0;j< A_L[i]->n; ++j){
-        //printf("row %d :\n",j);
-        int match = 0;
-        for(int k=A_L[i]->rowstart[j];k<A_L[i]->rowstart[j+1];++k){
-            //printf("here\n");
-            //A_L[i]->value[k]
-            if(match==0&&A_L[i]->colindex[k]==j){
-                match=1;
-                A_diag[j] = A_L[i]->value[k];
-                if(A_diag[j]==0){
-                    printf("WARNING !!!!!\n");
-                }
-                //A_L[i]->value[k] = 0;
-            }
-            //printf("%d ", A_L[i]->colindex[k]);
-            
-        }
-        assert(match==1);
-        //printf("\n");
-    }
     
     
-	RBGSNB(*(A_L[i]), A_diag ,b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
+	RBGSNB(*(A_L[i]), A_L_diag[i] ,b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
 	//RBGS(*(A_L[i]), b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],200);
 	for (int i=total_level-2;i>=0;i--)
 	{
 		prolongatoin(*(P_L[i]),x_L[i+1],x_L[i]);
-		RBGS(*(A_L[i]),b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
+		//RBGS(*(A_L[i]),b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
+		RBGSNB(*(A_L[i]),A_L_diag[i],b_L[i],x_L[i],S_L[i].v[0],S_L[i].v[1],S_L[i].v[2],4);
 	}
 	x = x_L[0];
 
@@ -333,6 +352,7 @@ void amgVCycle(vector<FixedSparseMatrix<T> *> &A_L,
 }
 template<class T>
 void amgPrecond(vector<FixedSparseMatrix<T> *> &A_L,
+    vector<T *> &A_L_diag,
 	vector<FixedSparseMatrix<T> *> &R_L,
 	vector<FixedSparseMatrix<T> *> &P_L,
 	vector<Vec3i>                  &S_L,
@@ -341,8 +361,18 @@ void amgPrecond(vector<FixedSparseMatrix<T> *> &A_L,
 {
 	x.resize(b.size());
 	x.assign(x.size(),0);
-	amgVCycle(A_L,R_L,P_L,S_L,x,b);
+	amgVCycle(A_L,A_L_diag, R_L,P_L,S_L,x,b);
 }
+
+template<class T>
+void clear_diag(vector<T *> A_L_diag){
+    for(int i=0;i<A_L_diag.size();++i){
+        if(A_L_diag[i])
+            delete [] A_L_diag[i];
+        A_L_diag[i] = 0;
+    }
+}
+
 template<class T>
 bool AMGPCGSolve(const SparseMatrix<T> &matrix, 
 	const std::vector<T> &rhs, 
@@ -372,7 +402,6 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 	if(residual_out==0) {
 		iterations_out=0;
 
-
 		for (int i=0; i<total_level; i++)
 		{
 			A_L[i]->clear();
@@ -389,7 +418,12 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 	}
 	double tol=tolerance_factor*residual_out;
 
-	amgPrecond(A_L,R_L,P_L,S_L,z,r);
+    vector<T *> A_L_diag;
+    for(int i=0;i<total_level;i++){
+        A_L_diag.push_back(get_diag(A_L[i]));
+    }
+
+	amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
 	double rho=BLAS::dot(z, r);
 	if(rho==0 || rho!=rho) {
 		for (int i=0; i<total_level; i++)
@@ -405,6 +439,7 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 
 		}
 		iterations_out=0;
+        clear_diag(A_L_diag);
 		return false;
 	}
 
@@ -435,7 +470,7 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 
 			return true; 
 		}
-		amgPrecond(A_L,R_L,P_L,S_L,z,r);
+		amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
 		double rho_new=BLAS::dot(z, r);
 		double beta=rho_new/rho;
 		BLAS::add_scaled(beta, s, z); s.swap(z); // s=beta*s+z
@@ -454,6 +489,7 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 		P_L[i]->clear();
 
 	}
+    clear_diag(A_L_diag);
 	return false;
 }
 
@@ -492,10 +528,15 @@ bool AMGPCGSolve(const FixedSparseMatrix<T> &fixed_matrix,
 	}
 	double tol=tolerance_factor*residual_out;
 
-	amgPrecond(A_L,R_L,P_L,S_L,z,r);
+    vector<T *> A_L_diag;
+    for(int i=0;i<total_level;i++){
+        A_L_diag.push_back(get_diag(A_L[i]));
+    }
+	amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
 	double rho=BLAS::dot(z, r);
 	if(rho==0 || rho!=rho) {
 		iterations_out=0;
+        clear_diag(A_L_diag);
 		return false;
 	}
 
@@ -511,9 +552,10 @@ bool AMGPCGSolve(const FixedSparseMatrix<T> &fixed_matrix,
 
 			iterations_out=iteration+1;
 
+            clear_diag(A_L_diag);
 			return true; 
 		
-		amgPrecond(A_L,R_L,P_L,S_L,z,r);
+		amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
 		double rho_new=BLAS::dot(z, r);
 		double beta=rho_new/rho;
 		BLAS::add_scaled(beta, s, z); s.swap(z); // s=beta*s+z
@@ -521,6 +563,7 @@ bool AMGPCGSolve(const FixedSparseMatrix<T> &fixed_matrix,
 	}
 	iterations_out=iteration;
 
+    clear_diag(A_L_diag);
 	return false;
 }
 
