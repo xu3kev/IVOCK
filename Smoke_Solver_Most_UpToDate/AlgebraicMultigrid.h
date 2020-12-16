@@ -109,6 +109,25 @@ void RBGS(const FixedSparseMatrix<T> &A,
 	}
 }
 
+static void print_m256d(__m256d x){
+    double temp[4];
+    _mm256_storeu_pd(temp, x);
+    printf("print m256d ");
+    for(int i=0;i<4;++i){
+        printf("%f ", temp[i]);
+    }
+    printf("\n");
+}
+
+static void print_m128i(__m128i x){
+    int temp[4];
+    _mm_storeu_si128((__m128i*)temp, x);
+    printf("print m128i ");
+    for(int i=0;i<4;++i){
+        printf("%d ", temp[i]);
+    }
+    printf("\n");
+}
 template<class T>
 void RBGSNB(const FixedSparseMatrix<T> &A, 
     const T *A_diag,
@@ -116,12 +135,13 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 	vector<T> &x, 
 	int ni, int nj, int nk, int iternum)
 {
-    const T * xp = &x[0];
+    const T * xp = &(x[0]);
 	for (int iter=0;iter<iternum;iter++)
 	{
 		size_t num = ni*nj*nk;
 		size_t slice = ni*nj;
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -134,15 +154,43 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 					T diag= 0;
                     //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
 					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-					for (int ii=index*8;ii<index*8+8;ii++)
-                        sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
+					//for (int ii=index*8;ii<index*8+8;ii++)
+                    //    sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
+
+                        
+                    //printf("print array");
+					//for (int ii=index*8;ii<index*8+8;ii++)
+                    //    printf("%f ",A.value[ii]);
+                    //printf("\n");
 
                     __m256d v1 = _mm256_loadu_pd(A.value+index*8);
                     __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
+
+                    //print_m256d(v1);
+                    //print_m256d(v2);
+
                     __m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
                     __m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
-                    __m256d c1 = _mm256_i32gather_pd(xp,ci1,1);
-                    __m256d c2 = _mm256_i32gather_pd(xp,ci2,1);
+
+                    //printf("print array");
+					//for (int ii=index*8;ii<index*8+8;ii++)
+                    //    printf("%d ",A.colindex[ii]);
+                    //printf("\n");
+
+                    //print_m128i(ci1);
+                    //print_m128i(ci2);
+
+                    __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
+                    __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
+
+
+                    //printf("print array ");
+					//for (int ii=index*8;ii<index*8+8;ii++)
+                    //    printf("%f ",xp[A.colindex[ii]]);
+                    //printf("\n");
+                    //print_m256d(c1);
+                    //print_m256d(c2);
+
                     __m256d c1v1 = _mm256_mul_pd(c1, v1);
                     __m256d c2v2 = _mm256_mul_pd(c2, v2);
                     __m256d cv = _mm256_add_pd(c1v1, c2v2);
@@ -154,16 +202,17 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     double avx_sum[2];
                     _mm_storeu_pd(avx_sum, dotproduct);
                     //printf("%f %f\n", avx_sum[0], sum);
-                   
+                    sum = avx_sum[0];
 
                     x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
+        }
+		//});
 
-		});
-
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			int k = thread_idx/slice;
 			int j = (thread_idx%slice)/ni;
 			int i = thread_idx%ni;
@@ -182,8 +231,8 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
                     //x[index] = (b[index]-sum)/diag;
 				}
 			}
-
-		});
+        }
+		//});
 	}
 }
 
