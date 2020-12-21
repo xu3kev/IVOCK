@@ -13,7 +13,9 @@
 #include "pcg_solver.h"
 #include <assert.h>
 #include <immintrin.h>
-#include <time.h>
+//#include <time.h>
+#include <sys/time.h>
+
 /*
 given A_L, R_L, P_L, b,compute x using
 Multigrid Cycles.
@@ -21,7 +23,7 @@ Multigrid Cycles.
 */
 using namespace std;
 using namespace BLAS;
-static int total_time = 0;
+static double total_time = 0;
 //template<class T>
 //void RBGS(const FixedSparseMatrix<T> &A, 
 //	const vector<T> &b,
@@ -182,9 +184,10 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 	vector<T> &x, 
 	const int ni, const int nj, const int nk, int iternum)
 {
-const clock_t begin_time = clock();
+struct timeval t0, t1;
+        gettimeofday(&t0, NULL);
     tbb::task_group group;
-    const size_t nthreads = 1;
+    const size_t nthreads = 8;
     tbb::task_arena arena(nthreads, 1);
 
     tbb::global_control control(
@@ -192,7 +195,7 @@ const clock_t begin_time = clock();
 
 	const size_t num = ni*nj*nk;
 	const size_t slice = ni*nj;
-	const int chunk = (num+(nthreads-1))/nthreads;
+	const int chunk = (nk+(nthreads-1))/nthreads;
 	//for(int index=nthread*chunk;index<(nthread+1)*chunk;++index)
 	for (int iter=0;iter<iternum;iter++)
 	{
@@ -204,7 +207,8 @@ const clock_t begin_time = clock();
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
 			//std::cout<<"thread_idx = "<<thread_idx<<"\n";
 			//std::cout<<"up = "<<(thread_idx+1)*chunk<<"\n";
-		for(int k=0;k<nk;k++)
+		//for(int k=0;k<nk;k++)
+		for(int k=thread_idx*chunk;k<nk&&k<(thread_idx+1)*chunk;k++)
 		for(int j=0;j<nj;j++)
 		for(int i=(1-(k+j)%2);i<ni;i+=2)
 		//for (unsigned idx = thread_idx * chunk; idx < (thread_idx + 1) * chunk; ++idx)
@@ -234,26 +238,33 @@ const clock_t begin_time = clock();
                 group.run( [&] {
 		tbb::parallel_for((size_t)0, nthreads, (size_t)1, [&](size_t thread_idx){
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
-		for (unsigned idx = thread_idx * chunk; idx < (thread_idx + 1) * chunk; ++idx)
-		{
-			int k = idx/slice;
-			int j = (idx%slice)/ni;
-			int i = idx%ni;
-			if(k<nk && j<nj && i<ni)
-			{
-				if ((i+j+k)%2 == 0)
-				{
-					RBGSUpdate(A, A_diag, b, x, idx);
-				}
-			}
-		}
+		for(int k=thread_idx*chunk;k<nk&&k<(thread_idx+1)*chunk;k++)
+		for(int j=0;j<nj;j++)
+		for(int i=(k+j)%2;i<ni;i+=2)
+			RBGSUpdate(A, A_diag, b, x, i+ni*j+slice*k);
+
+		//for (unsigned idx = thread_idx * chunk; idx < (thread_idx + 1) * chunk; ++idx)
+		//{
+		//	int k = idx/slice;
+		//	int j = (idx%slice)/ni;
+		//	int i = idx%ni;
+		//	if(k<nk && j<nj && i<ni)
+		//	{
+		//		if ((i+j+k)%2 == 0)
+		//		{
+		//			RBGSUpdate(A, A_diag, b, x, idx);
+		//		}
+		//	}
+		//}
         //}
 		});
 		});
 		});
         arena.execute( [&] { group.wait(); });      
 	}
-    total_time += clock () - begin_time;
+	gettimeofday(&t1, NULL);
+        double elapsed = (t1.tv_sec-t0.tv_sec) + (t1.tv_usec-t0.tv_usec)*1e-6;
+    total_time += elapsed;
 }
 
 template<class T>
@@ -487,7 +498,7 @@ total_time = 0;
 
 			}
 
-             printf("-------------- non-fixed time: %f\n", float(total_time) /  CLOCKS_PER_SEC);
+             printf("-------------- non-fixed time: %f\n", total_time );
 			return true; 
 		}
 		amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
