@@ -184,7 +184,7 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 {
 const clock_t begin_time = clock();
     tbb::task_group group;
-    int nthreads = 2;
+    const size_t nthreads = 1;
     tbb::task_arena arena(nthreads, 1);
 
     tbb::global_control control(
@@ -196,21 +196,34 @@ const clock_t begin_time = clock();
 	//for(int index=nthread*chunk;index<(nthread+1)*chunk;++index)
 	for (int iter=0;iter<iternum;iter++)
 	{
+
+		//printf("%d\n",num);
         arena.execute( [&] {
                 group.run( [&] {
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		tbb::parallel_for((size_t)0, nthreads, (size_t)1, [&](size_t thread_idx){
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
-			int k = thread_idx/slice;
-			int j = (thread_idx%slice)/ni;
-			int i = thread_idx%ni;
-			if(k<nk && j<nj && i<ni)
-			{
-				if ((i+j+k)%2 == 1)
-				{
-					RBGSUpdate(A, A_diag, b, x, thread_idx);
-				}
-			}
-        //}
+			//std::cout<<"thread_idx = "<<thread_idx<<"\n";
+			//std::cout<<"up = "<<(thread_idx+1)*chunk<<"\n";
+		for(int k=0;k<nk;k++)
+		for(int j=0;j<nj;j++)
+		for(int i=(1-(k+j)%2);i<ni;i+=2)
+		//for (unsigned idx = thread_idx * chunk; idx < (thread_idx + 1) * chunk; ++idx)
+		{
+
+			RBGSUpdate(A, A_diag, b, x, i+ni*j+slice*k);
+			//int k = idx / slice;
+			//int j = (idx % slice) / ni;
+			//int i = idx % ni;
+			//if (k < nk && j < nj && i < ni)
+			//{
+			//	if ((i + j + k) % 2 == 1)
+			//	{
+			//		//printf("%d\n",idx);
+			//		RBGSUpdate(A, A_diag, b, x, idx);
+			//	}
+			//}
+		}
+		//}
 		});
 		});
 		});
@@ -219,18 +232,21 @@ const clock_t begin_time = clock();
 
         arena.execute( [&] {
                 group.run( [&] {
-		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+		tbb::parallel_for((size_t)0, nthreads, (size_t)1, [&](size_t thread_idx){
         //for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
-			int k = thread_idx/slice;
-			int j = (thread_idx%slice)/ni;
-			int i = thread_idx%ni;
+		for (unsigned idx = thread_idx * chunk; idx < (thread_idx + 1) * chunk; ++idx)
+		{
+			int k = idx/slice;
+			int j = (idx%slice)/ni;
+			int i = idx%ni;
 			if(k<nk && j<nj && i<ni)
 			{
 				if ((i+j+k)%2 == 0)
 				{
-					RBGSUpdate(A, A_diag, b, x, thread_idx);
+					RBGSUpdate(A, A_diag, b, x, idx);
 				}
 			}
+		}
         //}
 		});
 		});
