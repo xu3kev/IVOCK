@@ -13,6 +13,7 @@
 #include "pcg_solver.h"
 #include <assert.h>
 #include <immintrin.h>
+#include <time.h>
 /*
 given A_L, R_L, P_L, b,compute x using
 Multigrid Cycles.
@@ -20,96 +21,97 @@ Multigrid Cycles.
 */
 using namespace std;
 using namespace BLAS;
-template<class T>
-void RBGS(const FixedSparseMatrix<T> &A, 
-	const vector<T> &b,
-	vector<T> &x, 
-	int ni, int nj, int nk, int iternum)
-{
-	for (int iter=0;iter<iternum;iter++)
-	{
-		size_t num = ni*nj*nk;
-		size_t slice = ni*nj;
-		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
-        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
-			int k = thread_idx/slice;
-			int j = (thread_idx%slice)/ni;
-			int i = thread_idx%ni;
-			if(k<nk && j<nj && i<ni)
-			{
-				if ((i+j+k)%2 == 1)
-				{
-					unsigned int index = (unsigned int)thread_idx;
-					T sum = 0;
-					T diag= 0;
-                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
-					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-					{
-                        if(A.value[ii]==0)
-                            continue;
-						if(A.colindex[ii]!=index)//none diagonal terms
-						{
-							sum += A.value[ii]*x[A.colindex[ii]];
-						}
-						else//record diagonal value A(i,i)
-						{
-							diag = A.value[ii];
-						}
-					}//A(i,:)*x for off-diag terms
-					if(diag!=0)
-					{
-						x[index] = (b[index] - sum)/diag;
-					}
-					else
-					{
-                        assert(0);
-						x[index] = 0;
-					}
-				}
-			}
-        }
-		//});
-
-		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
-        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
-			int k = thread_idx/slice;
-			int j = (thread_idx%slice)/ni;
-			int i = thread_idx%ni;
-			if(k<nk && j<nj && i<ni)
-			{
-				if ((i+j+k)%2 == 0)
-				{
-					unsigned int index = (unsigned int)thread_idx;
-					T sum = 0;
-					T diag= 0;
-					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-					{
-                        if(A.value[ii]==0)
-                            continue;
-						if(A.colindex[ii]!=index)//none diagonal terms
-						{
-							sum += A.value[ii]*x[A.colindex[ii]];
-						}
-						else//record diagonal value A(i,i)
-						{
-							diag = A.value[ii];
-						}
-					}//A(i,:)*x for off-diag terms
-					if(diag!=0)
-					{
-						x[index] = (b[index] - sum)/diag;
-					}
-					else
-					{
-                        assert(0);
-						x[index] = 0;
-					}
-				}
-			}
-        }
-		//});
-	}
-}
+static int total_time = 0;
+//template<class T>
+//void RBGS(const FixedSparseMatrix<T> &A, 
+//	const vector<T> &b,
+//	vector<T> &x, 
+//	int ni, int nj, int nk, int iternum)
+//{
+//	for (int iter=0;iter<iternum;iter++)
+//	{
+//		size_t num = ni*nj*nk;
+//		size_t slice = ni*nj;
+//		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+//        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
+//			int k = thread_idx/slice;
+//			int j = (thread_idx%slice)/ni;
+//			int i = thread_idx%ni;
+//			if(k<nk && j<nj && i<ni)
+//			{
+//				if ((i+j+k)%2 == 1)
+//				{
+//					unsigned int index = (unsigned int)thread_idx;
+//					T sum = 0;
+//					T diag= 0;
+//                    assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+//					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+//					{
+//                        if(A.value[ii]==0)
+//                            continue;
+//						if(A.colindex[ii]!=index)//none diagonal terms
+//						{
+//							sum += A.value[ii]*x[A.colindex[ii]];
+//						}
+//						else//record diagonal value A(i,i)
+//						{
+//							diag = A.value[ii];
+//						}
+//					}//A(i,:)*x for off-diag terms
+//					if(diag!=0)
+//					{
+//						x[index] = (b[index] - sum)/diag;
+//					}
+//					else
+//					{
+//                        assert(0);
+//						x[index] = 0;
+//					}
+//				}
+//			}
+//        }
+//		//});
+//
+//		//tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
+//        for(unsigned thread_idx = 0; thread_idx<num;++thread_idx){
+//			int k = thread_idx/slice;
+//			int j = (thread_idx%slice)/ni;
+//			int i = thread_idx%ni;
+//			if(k<nk && j<nj && i<ni)
+//			{
+//				if ((i+j+k)%2 == 0)
+//				{
+//					unsigned int index = (unsigned int)thread_idx;
+//					T sum = 0;
+//					T diag= 0;
+//					for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+//					{
+//                        if(A.value[ii]==0)
+//                            continue;
+//						if(A.colindex[ii]!=index)//none diagonal terms
+//						{
+//							sum += A.value[ii]*x[A.colindex[ii]];
+//						}
+//						else//record diagonal value A(i,i)
+//						{
+//							diag = A.value[ii];
+//						}
+//					}//A(i,:)*x for off-diag terms
+//					if(diag!=0)
+//					{
+//						x[index] = (b[index] - sum)/diag;
+//					}
+//					else
+//					{
+//                        assert(0);
+//						x[index] = 0;
+//					}
+//				}
+//			}
+//        }
+//		//});
+//	}
+//}
 
 static void print_m256d(__m256d x){
     double temp[4];
@@ -131,25 +133,69 @@ static void print_m128i(__m128i x){
     printf("\n");
 }
 
+template <class T>
+void RBGSUpdate(const FixedSparseMatrix<T> &A, const T *A_diag, const vector<T> &b, vector<T> &x, const int index)
+{
+	//unsigned int index = (unsigned int)thread_idx;
+    const T * xp = &(x[0]);
+	T sum = 0;
+	T diag = 0;
+	//assert(A.rowstart[index+1]-A.rowstart[index]<=8);
+	//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
+	//for (int ii=index*8;ii<index*8+8;ii++)
+	//    sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
+
+	__m256d v1 = _mm256_loadu_pd(A.value + index * 8);
+	__m256d v2 = _mm256_loadu_pd(A.value + index * 8 + 4);
+	__m256i ci12 = _mm256_loadu_si256((__m256i *)(A.colindex + index * 8));
+	//__m256i ci12 =_mm256_loadu_epi32(A.colindex+index*8);
+	//__m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
+	//__m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
+	__m128i ci1 = _mm256_castsi256_si128(ci12);
+	__m128i ci2 = _mm256_extractf128_si256(ci12, 1);
+	__m256d c1 = _mm256_i32gather_pd(xp, ci1, 8);
+	__m256d c2 = _mm256_i32gather_pd(xp, ci2, 8);
+	__m256d c1v1 = _mm256_mul_pd(c1, v1);
+	__m256d c2v2 = _mm256_mul_pd(c2, v2);
+	__m256d cv = _mm256_add_pd(c1v1, c2v2);
+	__m128d cvlow = _mm256_castpd256_pd128(cv);
+	__m128d cvhigh = _mm256_extractf128_pd(cv, 1);
+	__m128d sum1 = _mm_add_pd(cvlow, cvhigh);
+	__m128d swapped = _mm_shuffle_pd(sum1, sum1, 0b01);
+	__m128d dotproduct = _mm_add_pd(sum1, swapped);
+	double avx_sum[2];
+	_mm_storeu_pd(avx_sum, dotproduct);
+	//printf("%f %f\n", avx_sum[0], sum);
+	sum = avx_sum[0];
+
+	if (A_diag[index] != 0)
+		x[index] = (b[index] - sum + A_diag[index] * x[index]) / A_diag[index];
+	else
+		x[index] = 0;
+	//x[index] = (b[index]-sum)/diag;
+}
 
 template<class T>
 void RBGSNB(const FixedSparseMatrix<T> &A, 
     const T *A_diag,
 	const vector<T> &b,
 	vector<T> &x, 
-	int ni, int nj, int nk, int iternum)
+	const int ni, const int nj, const int nk, int iternum)
 {
+const clock_t begin_time = clock();
     tbb::task_group group;
     int nthreads = 2;
     tbb::task_arena arena(nthreads, 1);
 
     tbb::global_control control(
         tbb::global_control::max_allowed_parallelism, nthreads);
-    const T * xp = &(x[0]);
+
+	const size_t num = ni*nj*nk;
+	const size_t slice = ni*nj;
+	const int chunk = (num+(nthreads-1))/nthreads;
+	//for(int index=nthread*chunk;index<(nthread+1)*chunk;++index)
 	for (int iter=0;iter<iternum;iter++)
 	{
-		size_t num = ni*nj*nk;
-		size_t slice = ni*nj;
         arena.execute( [&] {
                 group.run( [&] {
 		tbb::parallel_for((size_t)0, num, (size_t)1, [&](size_t thread_idx){
@@ -161,44 +207,7 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 			{
 				if ((i+j+k)%2 == 1)
 				{
-					unsigned int index = (unsigned int)thread_idx;
-					T sum = 0;
-					T diag= 0;
-                    //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
-					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-					//for (int ii=index*8;ii<index*8+8;ii++)
-                    //    sum += A.value[ii]*x[A.colindex[ii]]; //A(i,:)*x for off-diag terms
-
-                        
-
-                    __m256d v1 = _mm256_loadu_pd(A.value+index*8);
-                    __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
-                    __m256i ci12 = _mm256_loadu_si256((__m256i*) (A.colindex+index*8));
-                    //__m256i ci12 =_mm256_loadu_epi32(A.colindex+index*8);
-                    //__m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
-                    //__m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
-                    __m128i ci1  = _mm256_castsi256_si128(ci12); 
-                    __m128i ci2 = _mm256_extractf128_si256(ci12, 1);
-                    __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
-                    __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
-                    __m256d c1v1 = _mm256_mul_pd(c1, v1);
-                    __m256d c2v2 = _mm256_mul_pd(c2, v2);
-                    __m256d cv = _mm256_add_pd(c1v1, c2v2);
-                    __m128d cvlow  = _mm256_castpd256_pd128(cv); 
-                    __m128d cvhigh = _mm256_extractf128_pd(cv, 1);
-                    __m128d sum1 =   _mm_add_pd(cvlow, cvhigh);
-                    __m128d swapped = _mm_shuffle_pd(sum1, sum1, 0b01);
-                    __m128d dotproduct = _mm_add_pd(sum1, swapped);
-                    double avx_sum[2];
-                    _mm_storeu_pd(avx_sum, dotproduct);
-                    //printf("%f %f\n", avx_sum[0], sum);
-                    sum = avx_sum[0];
-
-                    if(A_diag[index]!=0)
-                        x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
-                    else
-                        x[index] = 0;
-                    //x[index] = (b[index]-sum)/diag;
+					RBGSUpdate(A, A_diag, b, x, thread_idx);
 				}
 			}
         //}
@@ -219,39 +228,7 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 			{
 				if ((i+j+k)%2 == 0)
 				{
-					unsigned int index = (unsigned int)thread_idx;
-					T sum = 0;
-					T diag= 0;
-                    //assert(A.rowstart[index+1]-A.rowstart[index]<=8);
-					//for (int ii=A.rowstart[index];ii<A.rowstart[index+1];ii++)
-
-                    __m256d v1 = _mm256_loadu_pd(A.value+index*8);
-                    __m256d v2 = _mm256_loadu_pd(A.value+index*8+4);
-                    __m256i ci12 = _mm256_loadu_si256((__m256i*) (A.colindex+index*8));
-                    //__m128i ci1 = _mm_loadu_si128((__m128i*) (A.colindex+index*8));
-                    //__m128i ci2 = _mm_loadu_si128((__m128i*) (A.colindex+index*8+4));
-                    __m128i ci1  = _mm256_castsi256_si128(ci12); 
-                    __m128i ci2 = _mm256_extractf128_si256(ci12, 1);
-                    __m256d c1 = _mm256_i32gather_pd(xp,ci1,8);
-                    __m256d c2 = _mm256_i32gather_pd(xp,ci2,8);
-                    __m256d c1v1 = _mm256_mul_pd(c1, v1);
-                    __m256d c2v2 = _mm256_mul_pd(c2, v2);
-                    __m256d cv = _mm256_add_pd(c1v1, c2v2);
-                    __m128d cvlow  = _mm256_castpd256_pd128(cv); 
-                    __m128d cvhigh = _mm256_extractf128_pd(cv, 1);
-                    __m128d sum1 =   _mm_add_pd(cvlow, cvhigh);
-                    __m128d swapped = _mm_shuffle_pd(sum1, sum1, 0b01);
-                    __m128d dotproduct = _mm_add_pd(sum1, swapped);
-                    double avx_sum[2];
-                    _mm_storeu_pd(avx_sum, dotproduct);
-                    //printf("%f %f\n", avx_sum[0], sum);
-                    sum = avx_sum[0];
-
-                    if(A_diag[index]!=0)
-                        x[index] = (b[index]-sum+A_diag[index]*x[index])/A_diag[index];
-                    else
-                        x[index] = 0;
-                    //x[index] = (b[index]-sum)/diag;
+					RBGSUpdate(A, A_diag, b, x, thread_idx);
 				}
 			}
         //}
@@ -260,6 +237,7 @@ void RBGSNB(const FixedSparseMatrix<T> &A,
 		});
         arena.execute( [&] { group.wait(); });      
 	}
+    total_time += clock () - begin_time;
 }
 
 template<class T>
@@ -407,6 +385,7 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 	int &iterations_out,
 	int ni, int nj, int nk) 
 {
+total_time = 0;
 	FixedSparseMatrix<T> fixed_matrix;
 	fixed_matrix.construct_from_matrix(matrix);
 	vector<FixedSparseMatrix<T> *> A_L;
@@ -492,6 +471,7 @@ bool AMGPCGSolve(const SparseMatrix<T> &matrix,
 
 			}
 
+             printf("-------------- non-fixed time: %f\n", float(total_time) /  CLOCKS_PER_SEC);
 			return true; 
 		}
 		amgPrecond(A_L,A_L_diag,R_L,P_L,S_L,z,r);
